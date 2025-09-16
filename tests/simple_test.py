@@ -1,12 +1,14 @@
 import pandas as pd
 import joblib
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 
-# Load training data
-print("Loading training data...")
-df = pd.read_csv('data/invoices.csv')
+# Load the trained model
+print("Loading model...")
+model = joblib.load('model/client_classifier_model.pkl')
+
+# Load test data
+print("Loading test data...")
+df = pd.read_csv('data/invoices_v2.csv')
 
 # Convert dates
 df['create_date'] = pd.to_datetime(df['create_date'])
@@ -16,7 +18,7 @@ df['clear_date'] = pd.to_datetime(df['clear_date'])
 # Calculate payment delay
 df['payment_delay'] = (df['clear_date'] - df['due_in_date']).dt.days
 
-# Create client features
+# Create client features (same as training)
 print("Creating client features...")
 client_data = []
 for client in df['nom_du_client'].unique():
@@ -44,11 +46,19 @@ for client in df['nom_du_client'].unique():
 
 clients_df = pd.DataFrame(client_data)
 
-# Calculate global averages
-global_avg_invoices = clients_df['invoice_count'].mean()
-global_avg_amount = df['montant_totale'].mean()
+# Load training data to get global averages (same as used in training)
+df_train = pd.read_csv('data/invoices.csv')
+clients_train_df = pd.DataFrame()
+for client in df_train['nom_du_client'].unique():
+    client_invoices = df_train[df_train['nom_du_client'] == client]
+    clients_train_df = pd.concat([clients_train_df, pd.DataFrame([{
+        'invoice_count': len(client_invoices)
+    }])], ignore_index=True)
 
-# Create labels
+global_avg_invoices = clients_train_df['invoice_count'].mean()
+global_avg_amount = df_train['montant_totale'].mean()
+
+# Create labels (same logic as training)
 print("Creating labels...")
 labels = []
 for _, client in clients_df.iterrows():
@@ -99,30 +109,23 @@ features = ['invoice_count', 'avg_amount', 'avg_remaining', 'avg_delay', 'on_tim
 X = clients_df[features]
 y = clients_df['label']
 
-# Split data for validation
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+# Make predictions
+print("Making predictions...")
+y_pred = model.predict(X)
 
-# Train model
-print("Training model...")
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
+# Calculate accuracy
+accuracy = accuracy_score(y, y_pred)
+print(f"Test Accuracy: {accuracy:.3f}")
 
-# Test on validation set
-y_pred = model.predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
-
-print(f"Validation Accuracy: {accuracy:.3f}")
+# Show classification report
 print("\nClassification Report:")
-print(classification_report(y_test, y_pred))
-
-# Save model
-joblib.dump(model, 'model/client_classifier_model.pkl')
-print("Model saved to: model/client_classifier_model.pkl")
+print(classification_report(y, y_pred))
 
 # Save results
-clients_df.to_csv('data/training_results.csv', index=False)
-print("Training results saved to: data/training_results.csv")
+clients_df['predicted_label'] = y_pred
+clients_df.to_csv('data/test_results.csv', index=False)
+print("Test results saved to: data/test_results.csv")
 
-print("\nTraining completed!")
-print("Label distribution:")
-print(clients_df['label'].value_counts())
+print("\nActual vs Predicted:")
+for i, row in clients_df.iterrows():
+    print(f"{row['client_name']}: {row['label']} -> {row['predicted_label']}")
