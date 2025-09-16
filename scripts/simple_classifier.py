@@ -1,12 +1,12 @@
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import accuracy_score, classification_report
 
 # Step 1: Load the data
 print("Loading data...")
-df = pd.read_csv('/home/djawed/Desktop/Ai_Training/data/invoices_dataset.csv')
+df = pd.read_csv(r'c:\Users\UNITECH\Desktop\webs\Testing\invoices-Ai-Colab\Client-Invoices-Classification-ML-\data\invoices_dataset.csv')
 
 # Step 2: Create client features
 print("Creating client features...")
@@ -127,12 +127,22 @@ X = clients_df[features]
 y = clients_df['label']
 
 # Step 5: Split data (stratified to ensure all categories in test set)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
 
 # Step 6: Train model
 print("Training RandomForest...")
-model = RandomForestClassifier(n_estimators=100, random_state=42)
+model = RandomForestClassifier(
+    n_estimators=100, 
+    max_depth=10,  # Limit depth to prevent overfitting
+    min_samples_split=5,  # Require more samples to split
+    min_samples_leaf=2,   # Require more samples in leaves
+    random_state=42
+)
 model.fit(X_train, y_train)
+
+# Cross-validation for more realistic accuracy estimate
+cv_scores = cross_val_score(model, X_train, y_train, cv=5, scoring='accuracy')
+print(f"Cross-validation accuracy: {cv_scores.mean():.3f} (+/- {cv_scores.std() * 2:.3f})")
 
 # Step 7: Make predictions
 y_pred = model.predict(X_test)
@@ -140,11 +150,20 @@ y_pred = model.predict(X_test)
 # Step 8: Evaluate
 accuracy = accuracy_score(y_test, y_pred)
 print(f"Accuracy: {accuracy:.3f}")
+
+# Show label distribution in train and test sets
+print(f"\nTraining set size: {len(X_train)}")
+print(f"Test set size: {len(X_test)}")
+print("\nTraining set label distribution:")
+print(y_train.value_counts().sort_index())
+print("\nTest set label distribution:")
+print(y_test.value_counts().sort_index())
+
 print("\nClassification Report:")
-print(classification_report(y_test, y_pred))
+print(classification_report(y_test, y_pred, zero_division=0))
 
 # Step 9: Save results
-clients_df.to_csv('/home/djawed/Desktop/Ai_Training/data/classified_clients.csv', index=False)
+clients_df.to_csv(r'c:\Users\UNITECH\Desktop\webs\Testing\invoices-Ai-Colab\Client-Invoices-Classification-ML-\data\classified_clients.csv', index=False)
 print(f"\nResults saved to: classified_clients.csv")
 
 # Show label distribution
