@@ -8,7 +8,7 @@ X = pd.DataFrame([{
     'avg_amount': 1000.0,
     'avg_remaining': 0.0,
     'avg_delay': 12.5,
-    'on_time_percentage':99,
+    'on_time_percentage':90,
     'very_late_payments': 0
 }])
 

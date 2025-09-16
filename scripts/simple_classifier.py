@@ -7,7 +7,7 @@ from sklearn.metrics import accuracy_score, classification_report
 
 # Load training data
 print("Loading training data...")
-df = pd.read_csv('data/invoice.csv')
+df = pd.read_csv('data/invoices.csv')
 
 # Convert dates
 df['create_date'] = pd.to_datetime(df['create_date'])
@@ -15,7 +15,11 @@ df['due_in_date'] = pd.to_datetime(df['due_in_date'])
 df['clear_date'] = pd.to_datetime(df['clear_date'])
 
 # Calculate payment delay
-df['payment_delay'] = (df['clear_date'] - df['due_in_date']).dt.days
+current_date = pd.Timestamp.now()
+df['payment_delay'] = df.apply(
+    lambda row: (row['clear_date'] - row['due_in_date']).days if pd.notna(row['clear_date']) 
+    else (current_date - row['due_in_date']).days, axis=1
+)
 
 # Create client features
 print("Creating client features...")
@@ -84,12 +88,13 @@ for _, client in clients_df.iterrows():
     
     if on_time_percentage == 100:
         label = 'EXCELLENT_CLIENT'
-    elif (on_time_percentage >= 85 and on_time_percentage < 100 ):
+    elif (on_time_percentage >= 80 and on_time_percentage < 100 ):
         label = 'GOOD_CLIENT'
-    elif  very_late == 0 and avg_delay > 0 and avg_delay <= 45:
+    elif on_time_percentage<80 and very_late == 0 and avg_delay > 0 and avg_delay <= 45:
         # AVERAGE: a bit late 1-45 days, no payments later than 45 days
         label = 'AVERAGE_CLIENT'
     elif (
+        on_time_percentage<80 and
         invoice_count > high_invoice_threshold and
         avg_remaining > high_rest_threshold and
         very_late > 0
@@ -100,7 +105,7 @@ for _, client in clients_df.iterrows():
         # 2nd degree bad client - condition set 1
         (invoice_count > mid_low_invoice_threshold and invoice_count <= high_invoice_threshold and
          avg_remaining > high_rest_threshold and
-         very_late > 0)
+         very_late > 0 and on_time_percentage<80)
         or
         # 2nd degree bad client - condition set 2
         (invoice_count > high_invoice_threshold and
@@ -112,7 +117,7 @@ for _, client in clients_df.iterrows():
         # 1st degree bad client
         (invoice_count > mid_low_invoice_threshold and invoice_count <= high_invoice_threshold and
          avg_remaining > mid_rest_low_threshold and avg_remaining < high_rest_threshold and
-         very_late > 0)
+         very_late > 0 and on_time_percentage<80)
     ):
         label = '1ST_DEGREE_BAD_CLIENT'
 
