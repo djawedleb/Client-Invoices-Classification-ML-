@@ -7,7 +7,7 @@ from sklearn.metrics import accuracy_score, classification_report
 
 # Load training data
 print("Loading training data...")
-df = pd.read_csv('data/invoices.csv')
+df = pd.read_csv('data/invoice.csv')
 
 # Convert dates
 df['create_date'] = pd.to_datetime(df['create_date'])
@@ -72,18 +72,21 @@ for _, client in clients_df.iterrows():
     very_late = client['very_late_payments']
     avg_delay = client['avg_delay']
     
+
     # Precompute scaled thresholds using the provided "/ 0.5" rule
+    # Default label to avoid NameError when none of the conditions match
+  
     high_invoice_threshold = global_avg_invoices * 0.8 / 0.5  # 1.6 * avg
     mid_low_invoice_threshold = global_avg_invoices * 0.2 / 0.5  # 0.4 * avg
     high_rest_threshold = global_avg_amount * 0.75 / 0.5  # 1.5 * avg amount
     mid_rest_low_threshold = global_avg_amount * 0.25 / 0.5  # 0.5 * avg amount
     mid_rest_high_threshold = global_avg_amount * 0.75 / 0.5  # 1.5 * avg amount
-
+    
     if on_time_percentage == 100:
         label = 'EXCELLENT_CLIENT'
-    elif on_time_percentage >= 90:
+    elif (on_time_percentage >= 85 and on_time_percentage < 100 ):
         label = 'GOOD_CLIENT'
-    elif very_late == 0 and avg_delay > 0 and avg_delay <= 45:
+    elif  very_late == 0 and avg_delay > 0 and avg_delay <= 45:
         # AVERAGE: a bit late 1-45 days, no payments later than 45 days
         label = 'AVERAGE_CLIENT'
     elif (
@@ -112,13 +115,8 @@ for _, client in clients_df.iterrows():
          very_late > 0)
     ):
         label = '1ST_DEGREE_BAD_CLIENT'
-    else:
-        # Fallback: if late beyond 45 days but doesn't match bands, mark as 1st degree; otherwise average
-        if very_late > 0:
-            label = '1ST_DEGREE_BAD_CLIENT'
-        else:
-            label = 'AVERAGE_CLIENT'
-    
+
+
     labels.append(label)
 
 clients_df['label'] = labels
@@ -135,8 +133,7 @@ X = X.fillna(0)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
 # Train model
-print("Training model...")
-model = RandomForestClassifier(n_estimators=100, random_state=42)
+model = RandomForestClassifier(n_estimators=200, class_weight='balanced', random_state=42)
 model.fit(X_train, y_train)
 
 # Test on validation set
