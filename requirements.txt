@@ -1,0 +1,22 @@
+# Core ML libraries for classification
+scikit-learn==1.3.2
+pandas==2.1.4
+numpy==1.24.3
+
+# Data visualization for exploration
+matplotlib==3.8.2
+seaborn==0.13.0
+
+# Model persistence and utilities
+joblib==1.3.2
+scipy==1.11.4
+
+# Jupyter notebook for data exploration
+jupyter==1.0.0
+ipykernel==6.27.1
+
+# Configuration management
+pyyaml==6.0.1
+
+# Progress bars and utilities
+tqdm==4.66.1
