@@ -15,7 +15,11 @@ df['due_in_date'] = pd.to_datetime(df['due_in_date'])
 df['clear_date'] = pd.to_datetime(df['clear_date'])
 
 # Calculate payment delay
-df['payment_delay'] = (df['clear_date'] - df['due_in_date']).dt.days
+current_date = pd.Timestamp.now()
+df['payment_delay'] = df.apply(
+    lambda row: (row['clear_date'] - row['due_in_date']).days if pd.notna(row['clear_date']) 
+    else (current_date - row['due_in_date']).days, axis=1
+)
 
 # Create client features
 print("Creating client features...")
@@ -82,40 +86,26 @@ for _, client in clients_df.iterrows():
     mid_rest_low_threshold = global_avg_amount * 0.25 / 0.5  # 0.5 * avg amount
     mid_rest_high_threshold = global_avg_amount * 0.75 / 0.5  # 1.5 * avg amount
     
+    # More comprehensive classification that considers avg_delay
     if on_time_percentage == 100:
         label = 'EXCELLENT_CLIENT'
-    elif (on_time_percentage >= 85 and on_time_percentage < 100 ):
+    elif very_late > 0:
+        # BAD: has very late payments (>45 days) - severity based on remaining debt
+        if avg_remaining > high_rest_threshold:
+            label = '3RD_DEGREE_BAD_CLIENT'
+        elif avg_remaining > mid_rest_low_threshold:
+            label = '2ND_DEGREE_BAD_CLIENT'
+        else:
+            label = '1ST_DEGREE_BAD_CLIENT'
+    elif on_time_percentage >= 80 and avg_delay <= 15:
+        # GOOD: mostly on time (80-99%) with low average delay
         label = 'GOOD_CLIENT'
-    elif  very_late == 0 and avg_delay > 0 and avg_delay <= 45:
-        # AVERAGE: a bit late 1-45 days, no payments later than 45 days
+    elif avg_delay > 0 and avg_delay <= 45:
+        # AVERAGE: some delay but not very late
         label = 'AVERAGE_CLIENT'
-    elif (
-        invoice_count > high_invoice_threshold and
-        avg_remaining > high_rest_threshold and
-        very_late > 0
-    ):
-        # 3rd degree bad client
-        label = '3RD_DEGREE_BAD_CLIENT'
-    elif (
-        # 2nd degree bad client - condition set 1
-        (invoice_count > mid_low_invoice_threshold and invoice_count <= high_invoice_threshold and
-         avg_remaining > high_rest_threshold and
-         very_late > 0)
-        or
-        # 2nd degree bad client - condition set 2
-        (invoice_count > high_invoice_threshold and
-         avg_remaining > mid_rest_low_threshold and avg_remaining <= mid_rest_high_threshold and
-         very_late > 0)
-    ):
-        label = '2ND_DEGREE_BAD_CLIENT'
-    elif (
-        # 1st degree bad client
-        (invoice_count > mid_low_invoice_threshold and invoice_count <= high_invoice_threshold and
-         avg_remaining > mid_rest_low_threshold and avg_remaining < high_rest_threshold and
-         very_late > 0)
-    ):
-        label = '1ST_DEGREE_BAD_CLIENT'
-
+    else:
+        # Default case
+        label = 'AVERAGE_CLIENT'
 
     labels.append(label)
 
@@ -126,8 +116,7 @@ features = ['invoice_count', 'avg_amount', 'avg_remaining', 'avg_delay', 'on_tim
 X = clients_df[features]
 y = clients_df['label']
 
-# Handle missing values to avoid NaNs during training
-X = X.fillna(0)
+
 
 # Split data for validation
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
